@@ -83,6 +83,7 @@ extern "C"
 
 	extern void Bootloader_running();
 	extern void readappid();
+	extern void Write_RAM_Data(uint16_t offset, uint16_t chunk_size);
 
 #ifdef __cplusplus
 }
