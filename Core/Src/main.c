@@ -95,6 +95,7 @@ int main(void)
   /* USER CODE BEGIN 2 */
   memset((void*)&systemTim,0,sizeof(System_Tim_Flag));
   HAL_TIM_Base_Start_IT(&htim7);
+  TMF882x_Init();
   /* USER CODE END 2 */
 
   /* Infinite loop */

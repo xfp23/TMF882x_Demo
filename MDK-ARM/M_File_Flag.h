@@ -16,6 +16,7 @@
 #include "stdint.h"
 #include "string.h"
 #include <stdbool.h>
+#include "TMF882x.h"
 
 #ifdef __cplusplus
 extern "C"
