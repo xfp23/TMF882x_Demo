@@ -121,6 +121,8 @@ int main(void)
 	  if(systemTim.system_500ms == ON)
 	  {
 		  systemTim.system_500ms = OFF;
+		  HAL_Delay(6);
+		  readappid();
 		  HAL_GPIO_TogglePin(USER_LED_GPIO_Port,USER_LED_Pin);
 	  }
     /* USER CODE END WHILE */

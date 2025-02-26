@@ -9,6 +9,7 @@
 static HAL_StatusTypeDef Write_byte(uint8_t *byte, uint16_t len)
 {
     return HAL_I2C_Master_Transmit(TMF_I2C_HANDLE, TMF_I2C_ADDR, byte, len, TMF_TIMEOUT);
+    // HAL_I2C_Master_Transmit_DMA(TMF_I2C_HANDLE, TMF_I2C_ADDR, byte, len);
 }
 
 /**
@@ -89,94 +90,122 @@ uint8_t calculate_checksum(uint8_t cmd_stat, uint8_t size, uint8_t *data, uint8_
  */
 void Write_Firmware()
 {
-    uint8_t Firmware_download[23] = {BL_CMD_STAT, W_RAM, 20};
-    uint16_t Write_counts = (uint16_t)(tmf8828_image_length / 20); // 计算完整包的次数
-    uint16_t remain_bytes = tmf8828_image_length % 20;             // 计算剩余字节数
+    uint8_t Firmware_download[12] = {BL_CMD_STAT, W_RAM, 8}; // 每次发送8字节，更新数据包大小
+    uint16_t Write_counts = (uint16_t)(TOF_BIN_IMAGE_LENGTH / 8);     // 计算完整包的次数
+    uint16_t remain_bytes = TOF_BIN_IMAGE_LENGTH % 8; // 计算剩余字节数
 
-    // 发送完整的 20 字节数据包
+    // 发送完整的 8 字节数据包
     for (int i = 0; i < Write_counts; i++)
     {
-        memcpy(Firmware_download + 3, tmf8828_image + i * 20, 20);
-        Firmware_download[22] = calculate_checksum(W_RAM, 20, Firmware_download + 3, 20);
-        Write_byte(Firmware_download, 23); // 发送 23 字节
+        memset(Firmware_download, 0, 12); // 清空缓存
+        memcpy(Firmware_download + 3, tmf882x_image + i * 8, 8); // 从固件数据中复制8字节
+        Firmware_download[10] = calculate_checksum(W_RAM, 8, Firmware_download + 3, 11); // 计算并加入校验和
+        Write_byte(Firmware_download, 12); // 发送 12 字节
     }
 
-    // 处理剩余不足 20 字节的数据
+    // 处理剩余不足 8 字节的数据
     if (remain_bytes > 0)
     {
         Firmware_download[2] = remain_bytes; // 更新数据包大小
-        memcpy(Firmware_download + 3, tmf8828_image + Write_counts * 20, remain_bytes);
-        Firmware_download[3 + remain_bytes] = calculate_checksum(W_RAM, remain_bytes, Firmware_download + 3, remain_bytes);
+        memcpy(Firmware_download + 3, tmf882x_image + Write_counts * 8, remain_bytes); // 复制剩余的数据
+        Firmware_download[3 + remain_bytes] = calculate_checksum(W_RAM, remain_bytes, Firmware_download + 3, remain_bytes); // 计算校验和
         Write_byte(Firmware_download, 4 + remain_bytes); // 发送实际大小的数据
     }
 }
 
+
 uint8_t value = 0;
-uint8_t status = 0;
+uint8_t buf[3] = {0,0,0};
+    /**
+     * @brief 进入bootloader
+     * @note 1. 上拉en
+     * 2. Write 0x01 to register ENABLE_Register = 0x01
+     * 3. 轮询EN_REG直到读到 0x41
+     * 4. 读取 APPID_Register 寄存器
+     * 
+     */
 void Bootloader_running()
 {
-    uint8_t data[5] = {BL_CMD_STAT,DOWNLOAD_INIT,0x01,0x29,0xc1};
-    uint8_t data2[6] = {BL_CMD_STAT,ADDR_RAM,0x02,0x00,0x00,0xBA};
-    uint8_t cmd[4] = {0x08,0x11,0x00,0xee};
-    uint8_t buf[3] = {0};
+    uint8_t temp_reg = BL_CMD_STAT;
+    uint8_t firmware_init_reg[5] = {0x80, 0x14, 0x01, 0x29, 0xc1};
+    uint8_t set_addr_ram[6] = {0x08, 0x43, 0x02, 0x00, 0x00, 0xBA};
+    uint8_t reset_comm[4] = {0x08, 0x11, 0x00, 0xee};
+    uint8_t buf[3] = {0};  // 用于存储读取的值
+
+    // 拉高 EN 脚，启动 Bootloader
+    TMF_EN_SET; // Assuming it's a macro that pulls EN pin high
     Write_Reg(ENABLE_Register, 0x01);
-    HAL_Delay(10);
-    value = Read_Reg(ENABLE_Register); 
-    HAL_Delay(10);
 
-    if (Read_Reg(APPID_Register) == BOOTLOADER) // Bootloader模式
-    {
+    // 等待 ENABLE 寄存器为 0x41
+    while (Read_Reg(ENABLE_Register) != 0x41) {
+        HAL_Delay(10);  // 延时，避免过于频繁地读取
+    }
 
-        // Write_Reg(BL_CMD_STAT, DOWNLOAD_INIT); // 下载初始化
-        Write_byte(data,5);
-        
-        HAL_Delay(500);
-        //status = Read_Reg(BL_CMD_STAT);
-        while(buf[2] != 0xff)
-        {
-            Read_byte(buf,3);
+    // 读取 APPID 寄存器，检查是否为 Bootloader 模式
+    value = Read_Reg(APPID_Register);
+    if (value == BOOTLOADER) {
+        // 发送固件初始化命令
+        Write_Reg(BL_CMD_STAT, DOWNLOAD_INIT);
+        Write_byte(firmware_init_reg, 5);
+
+        // 等待固件初始化完成
+        do {
+            Write_byte(&temp_reg, 1);  // 发送命令
+            Read_byte(buf, 3);          // 读取状态寄存器
+            HAL_Delay(6);               // 延时，确保状态更新
+        } while (buf[2] != 0xFF);  // 检查是否初始化完成
+
+        // 重置 buf
+        memset(buf, 0, sizeof(buf));
+
+        // 设置 RAM 地址
+        Write_byte(set_addr_ram, 6);
+
+        // 等待地址设置完成
+        do {
+            Write_byte(&temp_reg, 1);
+            Read_byte(buf, 3);
+            HAL_Delay(6);
+        } while (buf[2] != 0xFF);
+
+        // 启动固件写入
+        Write_Firmware();
+
+        // 发送重置命令
+        Write_byte(reset_comm, 4);
+        HAL_Delay(3);  // 延时确保重置完成
+
+        // 再次检查 APPID 寄存器，确认是否完成
+        value = Read_Reg(APPID_Register);
+
+        // 如果仍然是 0x00，可能是硬件问题或 Bootloader 设置不正确
+        if (value == 0x00) {
+            // 此时需要检查是否 Bootloader 的地址、命令等设置是否正确
+			// Bootloader_running(); // 递归
+        } else if (value == 0x03) {
+            // APPID 变为 0x03，表示固件加载成功，跳转到应用程序
+			return;
         }
-        HAL_Delay(1000);
-        // Write_Reg(BL_CMD_STAT, ADDR_RAM);
-        Write_byte(data2,6);
-        HAL_Delay(600);
-
-
-        Write_Firmware(); // 烧录固件
-        HAL_Delay(6);
-
-        // Write_Reg(BL_CMD_STAT, RAMREMAP_RESET);
-        // HAL_Delay(1000);
-
-        //  Write_Reg(ENABLE_Register, STARTAPP_INRAM | 0x01); // 启动应用
-        //  HAL_Delay(10);
-        Write_byte(cmd,4);
-        HAL_Delay(6);
-        value = Read_Reg(APPID_Register); // 读取设备状态
-        HAL_Delay(1000);
-        status = Read_Reg(APPLICATION_STATUS_Register);
-
-//        if (Read_Reg(APPID_Register) == APPLICATION)
-//        {
-//            value = APPLICATION;
-//            return;
-//        }
-//        if (value == 0x00)
-//        {
-//            status = Read_Reg(APPLICATION_STATUS_Register);
-//            value = 0XFF;
-//        }
+    } else {
+        // 如果 APPID 不是 Bootloader 模式，则说明可能没有进入 Bootloader
+		return;
     }
 }
 
+
 void TMF882x_Init()
 {
-    TMF_EN_SET;
-    HAL_Delay(6);
-    value = Read_Reg(APPID_Register); // 读取设备状态
-    HAL_Delay(6);
+
     Bootloader_running(); // 运行bootloader
-    HAL_Delay(6);
-	value = 0;
-	value = Read_Reg(APPID_Register); // 读取设备状态
+	value = READ_REG(ENABLE_Register);
+	value = (0x01 | (0x02 << 4) | (0x00 << 6));
+	 // Write_Reg(ENABLE_Register,0x88);
+	value = READ_REG(ENABLE_Register);
+
+}
+
+
+void readappid()
+{
+	value = Read_Reg(APPID_Register);
 }

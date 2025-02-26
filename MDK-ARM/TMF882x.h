@@ -79,6 +79,10 @@ extern "C"
     } TMF882x_t;
 
     extern void TMF882x_Init();
+	
+
+	extern void Bootloader_running();
+	extern void readappid();
 
 #ifdef __cplusplus
 }

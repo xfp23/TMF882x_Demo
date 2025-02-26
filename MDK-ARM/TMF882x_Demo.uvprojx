@@ -401,6 +401,26 @@
               <FilePath>.\M_File_Flag.h</FilePath>
             </File>
             <File>
+              <FileName>TMF882x.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\TMF882x.c</FilePath>
+            </File>
+            <File>
+              <FileName>TMF_Firmare.c</FileName>
+              <FileType>1</FileType>
+              <FilePath>.\TMF_Firmare.c</FilePath>
+            </File>
+            <File>
+              <FileName>TMF882x.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\TMF882x.h</FilePath>
+            </File>
+            <File>
+              <FileName>TMF_Firmare.h</FileName>
+              <FileType>5</FileType>
+              <FilePath>.\TMF_Firmare.h</FilePath>
+            </File>
+            <File>
               <FileName>main.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/main.c</FilePath>
@@ -484,26 +504,6 @@
               <FileName>stm32f4xx_hal_msp.c</FileName>
               <FileType>1</FileType>
               <FilePath>../Core/Src/stm32f4xx_hal_msp.c</FilePath>
-            </File>
-            <File>
-              <FileName>TMF882x.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\TMF882x.c</FilePath>
-            </File>
-            <File>
-              <FileName>TMF_Firmare.c</FileName>
-              <FileType>1</FileType>
-              <FilePath>.\TMF_Firmare.c</FilePath>
-            </File>
-            <File>
-              <FileName>TMF882x.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\TMF882x.h</FilePath>
-            </File>
-            <File>
-              <FileName>TMF_Firmare.h</FileName>
-              <FileType>5</FileType>
-              <FilePath>.\TMF_Firmare.h</FilePath>
             </File>
           </Files>
         </Group>
