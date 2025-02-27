@@ -101,33 +101,35 @@ void cc()
     } while (data[2] != 0xFF);
 }
 
-/**
- * @brief 烧写固件
- */
+uint8_t Firmware_download[12] = {BL_CMD_STAT, W_RAM, 8};  // 每个数据包大小为 8 字节
+uint16_t Write_counts = (uint16_t)(TOF_BIN_IMAGE_LENGTH / 8); // 计算完整包的次数
+uint16_t remain_bytes = TOF_BIN_IMAGE_LENGTH % 8;             // 计算剩余字节数
 void Write_Firmware()
 {
-    uint8_t Firmware_download[12] = {BL_CMD_STAT, W_RAM, 8};      // 每个数据包大小为 8 字节
-    uint16_t Write_counts = (uint16_t)(TOF_BIN_IMAGE_LENGTH / 8); // 计算完整包的次数
-    uint16_t remain_bytes = TOF_BIN_IMAGE_LENGTH % 8;             // 计算剩余字节数
+
 
     // 发送完整的 8 字节数据包
     for (int i = 0; i < Write_counts; i++)
     {
-        memset(Firmware_download, 0, 12);                                                    // 清空数据包
-        memcpy(Firmware_download + 3, tmf882x_image + i * 8, 8);                             // 从固件数据中复制 8 字节
-        Firmware_download[11] = calculate_checksum(W_RAM, 8, tmf882x_image + 8 * i, 8); // 计算校验和
-        Write_byte(Firmware_download, 12);                                                   // 发送 12 字节
-        cc(); // 检查寄存器
+        //memset(Firmware_download, 0, 12);  // 清空数据包
+        memcpy(Firmware_download + 3, tmf882x_image + i * 8, 8);  // 从固件数据中复制 8 字节
+        Firmware_download[11] = calculate_checksum(W_RAM, 8, tmf882x_image + i * 8, 8); // 计算校验和
+        Write_byte(Firmware_download, 12);  // 发送 12 字节
+
+        // 检查寄存器状态
+        cc();  // 检查状态，确保 Bootloader 准备好
     }
 
     // 处理剩余不足 8 字节的数据
     if (remain_bytes > 0)
     {
-        Firmware_download[2] = remain_bytes;                                                                                    // 更新数据包大小
-        memcpy(Firmware_download + 3, tmf882x_image + Write_counts * 8, remain_bytes);                                          // 复制剩余的字节
-        Firmware_download[3 + remain_bytes] = calculate_checksum(W_RAM, remain_bytes, Firmware_download + 3, remain_bytes);    // 计算校验和
-        Write_byte(Firmware_download, 4 + remain_bytes);                                                                        // 发送实际大小的数据
-        cc();
+        Firmware_download[2] = remain_bytes;  // 更新数据包大小
+        memcpy(Firmware_download + 3, tmf882x_image + Write_counts * 8, remain_bytes);  // 复制剩余字节
+        Firmware_download[3 + remain_bytes] = calculate_checksum(W_RAM, remain_bytes, Firmware_download + 3, remain_bytes);  // 计算校验和
+        Write_byte(Firmware_download, 4 + remain_bytes);  // 发送实际大小的数据
+
+        // 检查寄存器状态
+        cc();  // 检查状态，确保 Bootloader 准备好
     }
 }
 
