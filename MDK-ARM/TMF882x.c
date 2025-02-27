@@ -184,17 +184,89 @@ void Bootloader_running()
     value = Read_Reg(APPID_Register);
 }
 
+void c(uint8_t expected_value)
+{
+    uint8_t data = BL_CMD_STAT;
+    uint8_t cmd_stat = 0;  // 用于存储读取的值
+
+    do {
+        Write_byte(&data, 1);  // 写入命令
+        cmd_stat = Read_Reg(BL_CMD_STAT);  // 读取状态寄存器
+    } while (cmd_stat != expected_value);  // 等待 CMD_STAT 为期望的值（此处为 0x00）
+}
+
+uint8_t data[4] = {0};  // 用于存储命令和数据
 void TMF882x_Init()
 {
 
-    // HAL_Delay(6);
-    // value = Read_Reg(APPID_Register); // 读取设备状态
-    // HAL_Delay(6);
-    Bootloader_running(); // 运行bootloader
-    //    HAL_Delay(6);
-    //    value = 0;
-    //    value = Read_Reg(APPID_Register); // 读取设备状态
+    uint8_t temp = 0x20;     // 临时命令，用于读取配置状态
+
+    // 运行 Bootloader，烧写固件
+    Bootloader_running();  
+
+    // 步骤 1: 发送默认配置命令 w(0x08, 0x16)
+    data[0] = 0x08;
+    data[1] = 0x16;
+    Write_byte(data, 2);
+
+    // 步骤 2: 检查 CMD_STAT 寄存器，等待返回 0x00
+    c(0x00);
+
+    // 步骤 3: 检查配置页面是否被正确载入，rs(0x20, data)，data0 = 0x16, data2 = 0xbc, data3 = 0x00
+    do {
+        Write_byte(&temp, 1);  // 发送 0x20 命令
+        Read_byte(data, 4);    // 读取数据
+    } while (data[0] != 0x16 || data[2] != 0xbc || data[3] != 0x00);  // 等待配置正确载入
+
+    // 步骤 4: 设置测量周期为 100ms，ws(0x24, {0x64, 0x00})
+    memset(data, 0, 4);
+    data[0] = 0x24;
+    data[1] = 0x64;
+    data[2] = 0x00;
+    Write_byte(data, 3);
+	HAL_Delay(6);
+
+    // 步骤 5: 设置 SPAD 类型，w(0x34, 0x06)
+    memset(data, 0, 4);
+    data[0] = 0x34;
+    data[1] = 0x06;
+    Write_byte(data, 2);
+HAL_Delay(6);
+    // 步骤 6: 配置 GPIO0 使 LED 随测量闪烁，w(0x31, 0x03)
+    memset(data, 0, 4);
+    data[0] = 0x31;
+    data[1] = 0x03;  // 配置 GPIO0 使 LED 闪烁
+    Write_byte(data, 2);
+HAL_Delay(6);
+    // 步骤 7: 将配置写入传感器，w(0x08, 0x15)
+    memset(data, 0, 4);
+    data[0] = 0x08;
+    data[1] = 0x15;
+    Write_byte(data, 2);
+HAL_Delay(6);
+    // 步骤 8: 检查 CMD_STAT 寄存器，等待返回 0x00
+    c(0x00);
+HAL_Delay(6);
+    // 步骤 9: 使能中断，w(0xe2, 0x02)
+    memset(data, 0, 4);
+    data[0] = 0xe2;
+    data[1] = 0x02;  // 启用中断
+    Write_byte(data, 2);
+HAL_Delay(6);
+    // 步骤 10: 清除中断，w(0xe1, 0xff)
+    memset(data, 0, 4);
+    data[0] = 0xe1;
+    data[1] = 0xff;  // 清除中断
+    Write_byte(data, 2);
+HAL_Delay(6);
+    // 至此配置完成，可以开始测量
+	data[0] = 0x08;
+	data[1] = 0x10;
+	Write_byte(data,2);
+	c(0x01);
 }
+
+
 
 void readappid()
 {
