@@ -73,7 +73,7 @@ uint8_t Write_Reg(TMF_Reg_t reg, uint8_t cmd)
  * @param data_length  数据长度，即 `data` 数组中的字节数
  * @return uint8_t     计算得到的 8 位校验值
  */
-uint8_t calculate_checksum(uint8_t cmd_stat, uint8_t size, uint8_t *data, uint8_t data_length)
+uint8_t calculate_checksum(uint8_t cmd_stat, uint8_t size, const uint8_t *data, uint8_t data_length)
 {
     uint16_t sum = cmd_stat + size; // 初始化求和变量，包含 cmd_stat 和 size
 
@@ -83,6 +83,22 @@ uint8_t calculate_checksum(uint8_t cmd_stat, uint8_t size, uint8_t *data, uint8_
     }
 
     return ~(sum & 0xFF); // 取 sum 的最低 8 位，并按位取反（补码），作为校验值
+}
+
+/**
+ * @brief 检查OK
+ * 
+ */
+void cc()
+{
+    uint8_t data[3] = {0};
+    uint8_t temp_reg = BL_CMD_STAT;
+    do
+    {
+        Write_byte(&temp_reg, 1); // 发送命令
+        Read_byte(data, 3);        // 读取状态寄存器
+        HAL_Delay(6);             // 延时，确保状态更新
+    } while (data[2] != 0xFF);
 }
 
 /**
@@ -99,8 +115,9 @@ void Write_Firmware()
     {
         memset(Firmware_download, 0, 12);                                                    // 清空数据包
         memcpy(Firmware_download + 3, tmf882x_image + i * 8, 8);                             // 从固件数据中复制 8 字节
-        Firmware_download[11] = calculate_checksum(W_RAM, 8, Firmware_download + 8 * i, 11); // 计算校验和
+        Firmware_download[11] = calculate_checksum(W_RAM, 8, tmf882x_image + 8 * i, 8); // 计算校验和
         Write_byte(Firmware_download, 12);                                                   // 发送 12 字节
+        cc(); // 检查寄存器
     }
 
     // 处理剩余不足 8 字节的数据
@@ -108,8 +125,9 @@ void Write_Firmware()
     {
         Firmware_download[2] = remain_bytes;                                                                                    // 更新数据包大小
         memcpy(Firmware_download + 3, tmf882x_image + Write_counts * 8, remain_bytes);                                          // 复制剩余的字节
-        Firmware_download[3 + remain_bytes] = calculate_checksum(W_RAM, remain_bytes, Firmware_download + 3, 3 + remain_bytes); // 计算校验和
+        Firmware_download[3 + remain_bytes] = calculate_checksum(W_RAM, remain_bytes, Firmware_download + 3, remain_bytes);    // 计算校验和
         Write_byte(Firmware_download, 4 + remain_bytes);                                                                        // 发送实际大小的数据
+        cc();
     }
 }
 
@@ -124,11 +142,10 @@ uint8_t value = 0;
  */
 void Bootloader_running()
 {
-    uint8_t temp_reg = BL_CMD_STAT;
+
     uint8_t firmware_init_reg[5] = {0x80, 0x14, 0x01, 0x29, 0xc1};
     uint8_t set_addr_ram[6] = {0x08, 0x43, 0x02, 0x00, 0x00, 0xBA};
     uint8_t reset_comm[4] = {0x08, 0x11, 0x00, 0xee};
-    uint8_t buf[3] = {0}; // 用于存储读取的值
 
     // 拉高 EN 脚，启动 Bootloader
     TMF_EN_SET; // Assuming it's a macro that pulls EN pin high
@@ -147,33 +164,13 @@ void Bootloader_running()
         Write_byte(firmware_init_reg, 5);
 
         // 等待固件初始化完成
-        do
-        {
-            Write_byte(&temp_reg, 1); // 发送命令
-            Read_byte(buf, 3);        // 读取状态寄存器
-            HAL_Delay(6);             // 延时，确保状态更新
-        } while (buf[2] != 0xFF);
-
-        // 重置 buf
-        memset(buf, 0, sizeof(buf));
+        cc();
 
         // 设置 RAM 地址
         Write_byte(set_addr_ram, 6);
-        do
-        {
-            Write_byte(&temp_reg, 1); // 发送命令
-            Read_byte(buf, 3);        // 读取状态寄存器
-            HAL_Delay(6);             // 延时，确保状态更新
-        } while (buf[2] != 0xFF);
+        cc();
         Write_Firmware();
-       // memset(buf, 0, sizeof(buf));
-//       do
-//       {
-//           Write_byte(&temp_reg, 1); // 发送命令
-//           Read_byte(buf, 3);        // 读取状态寄存器
-//           HAL_Delay(6);             // 延时，确保状态更新
-//       } while (buf[2] != 0xFF);
-        // 发送重置命令
+
         Write_byte(reset_comm, 4);
         HAL_Delay(3); // 延时确保重置完成
 
