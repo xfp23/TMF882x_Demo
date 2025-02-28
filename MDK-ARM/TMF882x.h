@@ -79,7 +79,7 @@ extern "C"
 			TMF_sta_t appid;
 			uint8_t intr_flag;
 			uint8_t result_buff[132];
-			int filtered_values[9];
+			int filtered_values[9]; // 这里装载了最终到的结果，单位应该是mm，至于输出一个结果的你们可以自己写个函数求下平均值把mm换成cm
         };
     } TMF882x_t;
 
