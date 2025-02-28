@@ -199,17 +199,22 @@ void SysTick_Handler(void)
 /******************************************************************************/
 
 /**
-  * @brief This function handles EXTI line3 interrupt.
+  * @brief This function handles EXTI line2 interrupt.
   */
-void EXTI3_IRQHandler(void)
+
+void EXTI2_IRQHandler(void)
 {
-  /* USER CODE BEGIN EXTI3_IRQn 0 */
-
-  /* USER CODE END EXTI3_IRQn 0 */
+  /* USER CODE BEGIN EXTI2_IRQn 0 */
+ if (__HAL_GPIO_EXTI_GET_IT(TMF_INT_Pin) != RESET) {
+	 
+       // 中断触发代表测量完成，读取完毕后配置下一次测量
+	 __asm__("nop");
+    }
+  /* USER CODE END EXTI2_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(TMF_INT_Pin);
-  /* USER CODE BEGIN EXTI3_IRQn 1 */
+  /* USER CODE BEGIN EXTI2_IRQn 1 */
 
-  /* USER CODE END EXTI3_IRQn 1 */
+  /* USER CODE END EXTI2_IRQn 1 */
 }
 
 /**

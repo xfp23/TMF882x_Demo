@@ -57,13 +57,13 @@ void Error_Handler(void);
 /* USER CODE END EFP */
 
 /* Private defines -----------------------------------------------------------*/
+#define TMF_INT_Pin GPIO_PIN_2
+#define TMF_INT_GPIO_Port GPIOE
+#define TMF_INT_EXTI_IRQn EXTI2_IRQn
 #define USER_LED_Pin GPIO_PIN_2
 #define USER_LED_GPIO_Port GPIOB
 #define TMF_EN_Pin GPIO_PIN_9
 #define TMF_EN_GPIO_Port GPIOC
-#define TMF_INT_Pin GPIO_PIN_3
-#define TMF_INT_GPIO_Port GPIOD
-#define TMF_INT_EXTI_IRQn EXTI3_IRQn
 
 /* USER CODE BEGIN Private defines */
 

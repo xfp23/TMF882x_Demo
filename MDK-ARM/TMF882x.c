@@ -258,6 +258,7 @@ void TMF882x_Init()
     memset(data, 0, 4);
     data[0] = 0xe1;
     data[1] = 0xff; // 清除中断
+	
     Write_byte(data, 2);
     HAL_Delay(6);
     // 至此配置完成，可以开始测量
