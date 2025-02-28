@@ -22,6 +22,7 @@
 #include "stm32f4xx_it.h"
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "M_File_Flag.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -208,7 +209,7 @@ void EXTI2_IRQHandler(void)
  if (__HAL_GPIO_EXTI_GET_IT(TMF_INT_Pin) != RESET) {
 	 
        // 中断触发代表测量完成，读取完毕后配置下一次测量
-	 __asm__("nop");
+	  TMF882x_callBack();
     }
   /* USER CODE END EXTI2_IRQn 0 */
   HAL_GPIO_EXTI_IRQHandler(TMF_INT_Pin);

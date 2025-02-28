@@ -1,5 +1,25 @@
 #include "TMF882x.h"
 
+volatile TMF882x_t tmf882x = {0};
+
+#ifndef ON
+#define ON (1)
+#endif
+
+#ifndef OFF
+#define OFF (0)
+#endif
+
+void TMF882x_callBack()
+{
+	if(tmf882x.flag.intrTigger == OFF)
+	{
+		tmf882x.flag.intrTigger = ON;
+	}
+
+}
+
+
 /**
  * @brief 写字节（发送数据）
  * @param byte 要写入的数据缓冲区
@@ -101,12 +121,12 @@ void cc()
     } while (data[2] != 0xFF);
 }
 
+// 烧写固件
+void Write_Firmware()
+{
 uint8_t Firmware_download[12] = {BL_CMD_STAT, W_RAM, 8};      // 每个数据包大小为 8 字节
 uint16_t Write_counts = (uint16_t)(TOF_BIN_IMAGE_LENGTH / 8); // 计算完整包的次数
 uint16_t remain_bytes = TOF_BIN_IMAGE_LENGTH % 8;             // 计算剩余字节数
-void Write_Firmware()
-{
-
     // 发送完整的 8 字节数据包
     for (int i = 0; i < Write_counts; i++)
     {
@@ -132,7 +152,6 @@ void Write_Firmware()
     }
 }
 
-uint8_t value = 0;
 /**
  * @brief 进入bootloader
  * @note 1. 上拉en
@@ -157,8 +176,8 @@ void Bootloader_running()
         ;
 
     // 读取 APPID 寄存器，检查是否为 Bootloader 模式
-    value = Read_Reg(APPID_Register);
-    if (value == BOOTLOADER)
+    tmf882x.appid = Read_Reg(APPID_Register);
+    if (tmf882x.appid == BOOTLOADER)
     {
         // 发送固件初始化命令
         // Write_Reg(BL_CMD_STAT, DOWNLOAD_INIT);
@@ -176,11 +195,11 @@ void Bootloader_running()
         HAL_Delay(3); // 延时确保重置完成
 
         // 再次检查 APPID 寄存器，确认是否完成
-        value = Read_Reg(APPID_Register);
+        tmf882x.appid = Read_Reg(APPID_Register);
     }
 
     HAL_Delay(1000);
-    value = Read_Reg(APPID_Register);
+    tmf882x.appid = Read_Reg(APPID_Register);
 }
 
 void c(uint8_t expected_value)
@@ -195,10 +214,10 @@ void c(uint8_t expected_value)
     } while (cmd_stat != expected_value); // 等待 CMD_STAT 为期望的值（此处为 0x00）
 }
 
-uint8_t data[4] = {0}; // 用于存储命令和数据
+
 void TMF882x_Init()
 {
-
+    uint8_t data[4] = {0}; // 用于存储命令和数据
     uint8_t temp = 0x20; // 临时命令，用于读取配置状态
 
     // 运行 Bootloader，烧写固件
@@ -262,13 +281,160 @@ void TMF882x_Init()
     Write_byte(data, 2);
     HAL_Delay(6);
     // 至此配置完成，可以开始测量
-    data[0] = 0x08;
-    data[1] = 0x10;
-    Write_byte(data, 2);
-    c(0x01);
+    startMeasure();
 }
 
 void readappid()
 {
-    value = Read_Reg(APPID_Register);
+    tmf882x.appid = Read_Reg(APPID_Register);
+}
+
+/**
+* @brief 开始测量
+*/
+void startMeasure()
+{
+	uint8_t data[2] = {0x08,0x10};
+    Write_byte(data, 2);
+    c(0x01);
+}
+
+/**
+* @brief 停止测量
+*/
+void stopMeasure()
+{
+	uint8_t data[2] = {0x08,0xFF};
+	Write_byte(data, 2);
+	c(0x00);
+}
+
+//void clearIntr()
+//{
+//}
+
+
+void TMF882x_Read()
+{
+	uint8_t data = 0x20;
+	if(tmf882x.flag.intrTigger == ON)
+	{
+		tmf882x.flag.intrTigger = OFF;
+		
+		tmf882x.intr_flag = Read_Reg(0xe1); // 读中断
+		Write_Reg(0xe1,0xff);
+		Write_byte(&data,1);
+		data = 0x24;
+		Write_byte(&data,1);
+		Read_byte((uint8_t *)tmf882x.result_buff,132);
+		startMeasure();
+	}
+	
+}
+void read_measurement_results()
+{
+	if(tmf882x.flag.intrTigger == ON)
+	{
+	
+	tmf882x.flag.intrTigger = OFF;
+    uint8_t result_id = 0x00;
+    uint8_t id_reg = 0x20;
+    uint8_t reg[2] = {0xe1, 0x00};
+    Write_byte(reg, 1);  // 发送数据到设备
+    Read_byte(&reg[1], 1);  // 读取数据
+
+    Write_byte(reg, 2);  // 发送数据到设备
+
+    Write_byte(&id_reg, 1);  // 发送寄存器地址
+    Read_byte(&result_id, 1);  // 读取测量结果的 ID
+
+    if (result_id == 0x10) {  // 检查是否为测量结果
+        Write_byte(&id_reg, 1);  // 发送寄存器地址
+        Read_byte((uint8_t *)tmf882x.result_buff, sizeof(tmf882x.result_buff));  // 读取数据到 data 数组
+
+        uint8_t dm, dl;
+        uint16_t combined_values[9];  // 保存所有合并后的16位数据
+
+        // 读取和合并数据
+        id_reg = 0x3A;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x39;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[0] = (dm << 8) | dl;
+
+        id_reg = 0x3D;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x3C;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[1] = (dm << 8) | dl;
+
+        id_reg = 0x40;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x3F;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[2] = (dm << 8) | dl;
+
+        id_reg = 0x43;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x42;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[3] = (dm << 8) | dl;
+
+        id_reg = 0x46;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x45;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[4] = (dm << 8) | dl;
+
+        id_reg = 0x49;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x48;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[5] = (dm << 8) | dl;
+
+        id_reg = 0x4C;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x4B;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[6] = (dm << 8) | dl;
+
+        id_reg = 0x4F;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x4E;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[7] = (dm << 8) | dl;
+
+        id_reg = 0x52;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dm, 1);
+        id_reg = 0x51;
+        Write_byte(&id_reg, 1);
+        Read_byte(&dl, 1);
+        combined_values[8] = (dm << 8) | dl;
+
+        for (int i = 0; i < 9; i++) {
+            tmf882x.filtered_values[i] = 0.1 * combined_values[i] + 0.9 * tmf882x.filtered_values[i];
+
+        }
+
+       
+    }
+}
+
 }

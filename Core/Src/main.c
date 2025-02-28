@@ -110,6 +110,8 @@ int main(void)
 	  if(systemTim.system_10ms == ON)
 	  {
 		 systemTim.system_10ms = OFF;
+		  read_measurement_results();
+		  // TMF882x_Read();
 
 	  }
 	  if(systemTim.system_100ms == ON)

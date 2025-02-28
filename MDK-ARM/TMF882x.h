@@ -51,6 +51,7 @@ extern "C"
 
     typedef enum
     {
+		APPERROR = 0x00,  // error
         BOOTLOADER = 0x80,  // bootloader
         APPLICATION = 0x03, // application running
     } TMF_sta_t;
@@ -75,16 +76,22 @@ extern "C"
         struct
         {
             TMF_flag_t flag;
+			TMF_sta_t appid;
+			uint8_t intr_flag;
+			uint8_t result_buff[132];
+			int filtered_values[9];
         };
     } TMF882x_t;
 
     extern void TMF882x_Init();
 	
-
+	extern void read_measurement_results();
 	extern void Bootloader_running();
 	extern void readappid();
 	extern void Write_RAM_Data(uint16_t offset, uint16_t chunk_size);
-
+	extern void startMeasure();
+	extern void TMF882x_callBack();
+	void TMF882x_Read();
 #ifdef __cplusplus
 }
 #endif
